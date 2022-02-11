@@ -1,0 +1,7 @@
+.vscode/
+*.out
+*.zip
+.terraform/
+.terraform*
+terraform.tfstate.d/
+terraform.tfstate*

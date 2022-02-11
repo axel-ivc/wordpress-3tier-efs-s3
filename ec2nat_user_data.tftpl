@@ -1,0 +1,59 @@
+#!/bin/sh
+
+# Install MySQL client
+yum install -y mysql57
+
+# Create account for Wordpress and grant permissions to it.
+# Variables are populated from `main.tf`
+
+mysql -h ${RDS_ADDRESS} -u ${RDS_MASTER_USER} --password=${RDS_MASTER_PASSWORD} << EOF
+CREATE USER '${RDS_DB_USER}'@'%' IDENTIFIED BY '${RDS_DB_PASSWORD}';
+GRANT ALL PRIVILEGES ON \`${RDS_DB_NAME}\`.* TO '${RDS_DB_USER}'@'%';
+FLUSH PRIVILEGES;
+EOF
+
+# Wait for certain availability of EFS DNS name
+sleep 90
+
+# Install EFS mount helper
+yum install -y amazon-efs-utils
+
+# Mount EFS for Wordpress (change UID/GID to `apache`)
+mkdir /efs
+mount -t efs -o tls ${EFS_ID}:/ /efs
+chown 48:48 /efs
+
+# Get Wordpress
+cd /var/tmp
+wget https://wordpress.org/latest.tar.gz
+tar zxf latest.tar.gz
+
+# Get S3 (W3TC) plugin
+cd /var/tmp/wordpress/wp-content/plugins
+wget https://downloads.wordpress.org/plugin/${PLUGIN_FILENAME}
+unzip ${PLUGIN_FILENAME}
+rm -f ${PLUGIN_FILENAME}
+
+# Fill variables in wp-config.php
+cd /var/tmp/wordpress
+cp wp-config-sample.php wp-config.php
+chmod 640 wp-config.php
+sed -i "s/database_name_here/${RDS_DB_NAME}/g" wp-config.php
+sed -i "s/username_here/${RDS_DB_USER}/g" wp-config.php
+sed -i "s/password_here/${RDS_DB_PASSWORD}/g" wp-config.php
+sed -i "s/localhost/${RDS_ADDRESS}/g" wp-config.php
+sed -i "s/'AUTH_KEY'.*$/'AUTH_KEY', '${WP_AUTH_KEY}' );/g" wp-config.php
+sed -i "s/'SECURE_AUTH_KEY'.*$/'SECURE_AUTH_KEY', '${WP_SECURE_AUTH_KEY}' );/g" wp-config.php
+sed -i "s/'LOGGED_IN_KEY'.*$/'LOGGED_IN_KEY', '${WP_LOGGED_IN_KEY}' );/g" wp-config.php
+sed -i "s/'NONCE_KEY'.*$/'NONCE_KEY', '${WP_NONCE_KEY}' );/g" wp-config.php
+sed -i "s/'AUTH_SALT'.*$/'AUTH_SALT', '${WP_AUTH_SALT}' );/g" wp-config.php
+sed -i "s/'SECURE_AUTH_SALT'.*$/'SECURE_AUTH_SALT', '${WP_SECURE_AUTH_SALT}' );/g" wp-config.php
+sed -i "s/'LOGGED_IN_SALT'.*$/'AUTLOGGED_IN_SALTH_KEY', '${WP_LOGGED_IN_SALT}' );/g" wp-config.php
+sed -i "s/'NONCE_SALT'.*$/'NONCE_SALT', '${WP_NONCE_SALT}' );/g" wp-config.php
+
+# Move Wordpress to EFS and clean up
+cd /var/tmp
+chown -R 48:48 wordpress/*
+mv wordpress/* /efs/
+rm -rf wordpress latest.tar.gz
+umount /efs

@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Install EFS mount helper
+yum install -y amazon-efs-utils
+
+# Install Apache
+yum install -y httpd
+
+# Mount EFS with Wordpress
+mount -t efs -o tls ${EFS_ID}:/ /var/www/html
+
+# Install PHP
+amazon-linux-extras enable php7.4
+yum clean metadata
+yum install -y php php-pecl-imagick php-{pear,cgi,common,curl,mbstring,gd,mysqlnd,gettext,bcmath,json,xml,intl,zip,imap,devel}
+
+# Enable .htaccess files
+sed -i '/<Directory "\/var\/www\/html">/,/<\/Directory>/ s/AllowOverride None/AllowOverride all/' /etc/httpd/conf/httpd.conf
+
+# Start Apache
+systemctl enable httpd
+systemctl start httpd
