@@ -14,7 +14,7 @@ resource "aws_vpc" "WebApps-vpc" {
 # ALB public subnets
 # One subnet in each AZ
 resource "aws_subnet" "WebApps-SubNpublic" {
-  count = 2
+  count = length(var.VPC_PUBLIC_SUBNETS)
 
   vpc_id                  = aws_vpc.WebApps-vpc.id
   cidr_block              = var.VPC_PUBLIC_SUBNETS[count.index]
@@ -82,7 +82,7 @@ resource "aws_route_table" "WebApps-RTigw" {
 
 # Assign route table to public subnets
 resource "aws_route_table_association" "WebApps-RTassocPub" {
-  count = 2
+  count = length(var.VPC_PUBLIC_SUBNETS)
 
   subnet_id      = aws_subnet.WebApps-SubNpublic[count.index].id
   route_table_id = aws_route_table.WebApps-RTigw.id
